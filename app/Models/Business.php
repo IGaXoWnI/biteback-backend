@@ -25,4 +25,8 @@ class Business extends Model
     {
         return $this->belongsTo(User::class);
     }
+    public function boxes()
+    {
+        return $this->hasMany(Box::class);
+    }
 }

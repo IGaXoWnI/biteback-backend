@@ -23,6 +23,10 @@ class User extends Authenticatable implements JWTSubject
         'email',
         'password',
         'role',
+        'latitude',
+        'longitude',
+        'zone',
+        'address',
     ];
 
     /**
@@ -59,5 +63,22 @@ class User extends Authenticatable implements JWTSubject
     public function business()
     {
         return $this->hasOne(Business::class);
+    }
+
+
+
+    public function isAdmin()
+    {
+        return $this->role === 'Admin';
+    }
+
+    public function isMerchant()
+    {
+        return $this->role === 'Business';
+    }
+
+    public function isConsumer()
+    {
+        return $this->role === 'Consumer';
     }
 }
