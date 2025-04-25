@@ -58,6 +58,61 @@ class UserController extends Controller
         return null;
     }
 
- 
-   
+
+    public function getAllConsumers(Request $request)
+    {
+        // Check if user is authorized (admin)
+        if (!Auth::user()->role === 'Admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized access'
+            ], 403);
+        }
+
+        // Get all consumers with pagination
+        $consumers = User::where('role', 'Consumer')
+            ->paginate($request->per_page ?? 15);
+
+        return response()->json([
+            'success' => true,
+            'data' => $consumers
+        ]);
+    }
+
+
+    public function deleteUser($id)
+    {
+        if (!Auth::user()->role === 'Admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized access'
+            ], 403);
+        }
+
+        // Find the user
+        $user = User::find($id);
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        }
+
+        // Prevent admins from being deleted through API
+        if ($user->isAdmin()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cannot delete admin users'
+            ], 403);
+        }
+
+        // Delete the user
+        $user->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User deleted successfully'
+        ]);
+    }
 }
