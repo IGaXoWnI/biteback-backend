@@ -250,58 +250,131 @@ class BoxController extends Controller
     }
 
 
-    // public function getAllZone(Request $request)
-    // {
-    //     $latitude = Auth::user()->latitude;
-    //     $longitude = Auth::user()->longitude;
-    //     $radius = Auth::user()->zone * 1000;
+    public function getAllZone(Request $request)
+    {
+        $latitude = Auth::user()->latitude;
+        $longitude = Auth::user()->longitude;
+        $radius = Auth::user()->zone * 1000; // zone in meters
 
-    //     $boxes = Box::with('business')->get();
+        $boxes = Box::with('business')->get();
 
-    //     $locations = [];
-    //     $boxData = [];
+        $boxData = [];
 
-    //     foreach ($boxes as $box) {
-    //         $address = $box->business->business_address;
+        foreach ($boxes as $box) {
+            $address = $box->business->business_address;
 
-    //         $geoResponse = Http::get('https://api.opencagedata.com/geocode/v1/json', [
-    //             'q' => $address,
-    //             'key' => '16a6b2414b4f4109bd6e21c5591ecdc4',
-    //         ]);
+            // Geocode the address using OpenCageData
+            $geoResponse = Http::get('https://api.opencagedata.com/geocode/v1/json', [
+                'q' => $address,
+                'key' => '16a6b2414b4f4109bd6e21c5591ecdc4',
+            ]);
 
-    //         $geo = $geoResponse->json();
+            $geo = $geoResponse->json();
 
-    //         if (!empty($geo['results'])) {
-    //             $lat = $geo['results'][0]['geometry']['lat'];
-    //             $lon = $geo['results'][0]['geometry']['lng'];
+            if (!empty($geo['results'])) {
+                $lat = $geo['results'][0]['geometry']['lat'];
+                $lon = $geo['results'][0]['geometry']['lng'];
 
-    //             $locations[] = [$lon, $lat];
+                $boxData[] = [
+                    'box' => $box,
+                    'lat' => $lat,
+                    'lon' => $lon,
+                ];
+            }
+        }
 
-    //             $boxData[] = [
-    //                 'box' => $box,
-    //                 'lat' => $lat,
-    //                 'lon' => $lon,
-    //             ];
-    //         }
-    //     }
+        $userLocation = [$longitude, $latitude];
+        $mapboxToken = 'pk.eyJ1IjoiZ2F4b3duMDciLCJhIjoiY204bjBmOWttMWlpeTJrc2V2ZHd4dGF2diJ9.49gPJT5GklJQsNc5fO7AtA';
 
-    //     $userLocation = [$longitude, $latitude];
+        $results = [];
 
-    //     $response = Http::withHeaders([
-    //         'Authorization' => '5b3ce3597851110001cf6248711b2a6debc54dc9a140ef32b7ee0a12',
-    //         'Accept' => 'application/json',
-    //         'Content-Type' => 'application/json',
-    //     ])->post('https://api.openrouteservice.org/v2/matrix/driving-car', [
-    //         'locations' => array_merge([$userLocation], $locations),
-    //         'metrics' => ['distance'],
-    //         'units' => 'm',
-    //     ]);
+        foreach ($boxData as $data) {
+            $startLon = $userLocation[0];
+            $startLat = $userLocation[1];
+            $destLon = $data['lon'];
+            $destLat = $data['lat'];
+
+            // Request Mapbox Directions API
+            $response = Http::get("https://api.mapbox.com/directions/v5/mapbox/driving/{$startLon},{$startLat};{$destLon},{$destLat}", [
+                'access_token' => $mapboxToken,
+                'geometries' => 'geojson',
+                'overview' => 'simplified',
+            ]);
+
+            $directions = $response->json();
+
+            if (isset($directions['routes'][0])) {
+                $distance = $directions['routes'][0]['distance'];
+
+                if ($distance <= $radius) {
+                    $results[] = [
+                        'box' => $data['box'],
+                        'distance_in_meters' => $distance,
+                    ];
+                }
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Boxes retrieved successfully',
+            'data' => $results
+        ], 200);
+    }
 
 
-    //     $distances = $response->json();
-    //     dd($distances);
-    // }
+    public function getAllBoxes(Request $request)
+    {
+        // Check if user is authorized (admin)
+        if (!Auth::user()->role === 'Admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized access'
+            ], 403);
+        }
 
+        // Get all boxes with pagination and relationships
+        $boxes = Box::with('business')
+            ->paginate($request->per_page ?? 15);
 
+        return response()->json([
+            'success' => true,
+            'data' => $boxes
+        ]);
+    }
 
+    /**
+     * Delete a box
+     * 
+     * @param int $id
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function deleteBox($id)
+    {
+        // Check if user is authorized (admin)
+        if (!Auth::user()->role === 'Admin') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized access'
+            ], 403);
+        }
+
+        // Find the box
+        $box = Box::find($id);
+
+        if (!$box) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Box not found'
+            ], 404);
+        }
+
+        // Delete the box
+        $box->delete();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Box deleted successfully'
+        ]);
+    }
 }
