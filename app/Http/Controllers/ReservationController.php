@@ -71,14 +71,13 @@ class ReservationController extends Controller
         DB::transaction(function () use ($box) {
             $box->quantity_available = $box->quantity_available - 1;
             $box->save();
-            
+
             // 2. Create the reservation
             Reservation::create([
                 'user_id' => Auth::id(),
                 'box_id' => $box->id,
                 'status' => 'reserved'
             ]);
-            
         });
 
         return response()->json([
@@ -155,6 +154,12 @@ class ReservationController extends Controller
             ], 400);
         }
 
+        // If canceling the reservation, increment the box quantity
+        if ($request->status === 'canceled') {
+            $box = $reservation->box;
+            $box->increment('quantity_available');
+        }
+
         $reservation->status = $request->status;
         $reservation->save();
 
@@ -200,6 +205,62 @@ class ReservationController extends Controller
         return response()->json([
             'success' => true,
             'data' => $reservations
+        ]);
+    }
+
+    public function checkIsReserved($box_id)
+    {
+        $box = Box::find($box_id);
+
+        // Check if box exists
+        if (!$box) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Box not found'
+            ], 404);
+        }
+
+        // Check if user already has a reservation for this box
+        $userHasReservation = Reservation::where('box_id', $box->id)
+            ->where('user_id', Auth::id())
+            ->where('status', 'reserved')
+            ->exists();
+
+        return response()->json([
+            'success' => true,
+            'is_reserved' => $userHasReservation
+        ]);
+    }
+
+    public function confirmPickup(Request $request, $id)
+    {
+        $reservation = Reservation::find($id);
+
+        if (!$reservation) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Reservation not found'
+            ], 404);
+        }
+
+        // Check if user owns this reservation or is a business owner of the box
+        $isOwner = $reservation->user_id === Auth::id();
+        $isBusinessOwner = $reservation->box->business->user_id === Auth::id();
+
+        if (!$isOwner && !$isBusinessOwner) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized to confirm pickup for this reservation'
+            ], 403);
+        }
+
+        $reservation->status = 'picked_up';
+        $reservation->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Reservation confirmed as picked up successfully',
+            'data' => $reservation
         ]);
     }
 }
