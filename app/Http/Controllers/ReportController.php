@@ -10,12 +10,7 @@ use Illuminate\Support\Facades\Validator;
 
 class ReportController extends Controller
 {
-    /**
-     * Submit a report for a box
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
+   
     public function submitReport(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -60,15 +55,9 @@ class ReportController extends Controller
         ]);
     }
 
-    /**
-     * Get all reports (admin only)
-     * 
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
+
     public function getAllReports(Request $request)
     {
-        // Check if user is authorized (admin)
         if (!Auth::user()->role === 'Admin') {
             return response()->json([
                 'success' => false,
@@ -89,16 +78,9 @@ class ReportController extends Controller
         ]);
     }
 
-    /**
-     * Update report status (admin only)
-     * 
-     * @param Request $request
-     * @param int $id
-     * @return \Illuminate\Http\JsonResponse
-     */
+
     public function updateReportStatus(Request $request, $id)
     {
-        // Check if user is authorized (admin)
         if (!Auth::user()->role === 'Admin') {
             return response()->json([
                 'success' => false,

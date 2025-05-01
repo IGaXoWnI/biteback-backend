@@ -12,7 +12,9 @@ use Illuminate\Support\Facades\Validator;
 class UserController extends Controller
 {
 
-    public function updateLocation(Request $request)
+
+
+    public function updateUserLocation(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'latitude' => 'required|string',
@@ -20,7 +22,7 @@ class UserController extends Controller
             'zone' => 'sometimes|string',
         ]);
 
-        $address = $this->getAddressFromCoordinates(
+        $address = $this->addrFromCoords(
             $request->latitude,
             $request->longitude
         );
@@ -43,7 +45,7 @@ class UserController extends Controller
         ]);
     }
 
-    private function getAddressFromCoordinates($latitude, $longitude)
+    private function addrFromCoords($latitude, $longitude)
     {
         $apiKey = '93c44a46f2924bbc886b818dcf32aea3';
         $url = "https://api.opencagedata.com/geocode/v1/json?q={$latitude}+{$longitude}&key={$apiKey}";
@@ -57,11 +59,30 @@ class UserController extends Controller
 
         return null;
     }
+    // public function sendLatLong(Request $request)
+    // {
+    //     $request->validate([
+    //         'latitude' => 'required|numeric',
+    //         'longitude' => 'required|numeric',
+    //         'zone' => 'required|numeric|min:1|max:50'
+    //     ]);
+
+    //     $id = Auth::user()->id;
+    //     $user = User::find($id);
+    //     $user->latitude = $request->latitude;
+    //     $user->longitude = $request->longitude;
+    //     $user->zone = $request->zone;
+    //     $user->save();
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'message' => 'Location updated successfully'
+    //     ]);
+    // }
 
 
     public function getAllConsumers(Request $request)
     {
-        // Check if user is authorized (admin)
         if (!Auth::user()->role === 'Admin') {
             return response()->json([
                 'success' => false,
@@ -69,8 +90,8 @@ class UserController extends Controller
             ], 403);
         }
 
-        // Get all consumers with pagination
-        $consumers = User::where('role', 'Consumer')
+
+        $consumers = User::where('role', "Consumer")
             ->paginate($request->per_page ?? 15);
 
         return response()->json([
@@ -89,7 +110,6 @@ class UserController extends Controller
             ], 403);
         }
 
-        // Find the user
         $user = User::find($id);
 
         if (!$user) {
@@ -99,7 +119,6 @@ class UserController extends Controller
             ], 404);
         }
 
-        // Prevent admins from being deleted through API
         if ($user->isAdmin()) {
             return response()->json([
                 'success' => false,
@@ -107,12 +126,63 @@ class UserController extends Controller
             ], 403);
         }
 
-        // Delete the user
         $user->delete();
 
         return response()->json([
             'success' => true,
             'message' => 'User deleted successfully'
+        ]);
+    }
+    // public function checkLocationSet(Request $request)
+    // {
+    //     $user = Auth::user();
+
+    //     $hasLocation = !empty($user->latitude) && !empty($user->longitude) && !empty($user->zone);
+
+    //     return response()->json([
+    //         'success' => true,
+    //         'locationSet' => $hasLocation,
+    //         'data' => $hasLocation ? [
+    //             'latitude' => $user->latitude,
+    //             'longitude' => $user->longitude,
+    //             'zone' => $user->zone
+    //         ] : null
+    //     ]);
+    // }
+
+
+     
+    public function updateUserStatus(Request $request, $id)
+    {
+
+        $validator = Validator::make($request->all(), [
+            'status' => 'required|string|in:active,inactive,suspended',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        $user = User::find($id);
+
+        if (!$user) {
+            return response()->json([
+                'success' => false,
+                'message' => 'User not found'
+            ], 404);
+        }
+
+        $user->status = $request->status;
+        $user->save();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'User status updated successfully',
+            'data' => $user
         ]);
     }
 }

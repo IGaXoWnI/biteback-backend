@@ -11,13 +11,8 @@ use Illuminate\Support\Facades\Validator;
 
 class ReservationController extends Controller
 {
-    /**
-     * Create a new reservation
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function store(Request $request)
+   
+    public function makeReservation(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'box_id' => 'required|exists:boxes,id',
@@ -33,7 +28,6 @@ class ReservationController extends Controller
 
         $box = Box::find($request->box_id);
 
-        // Check if box exists
         if (!$box) {
             return response()->json([
                 'success' => false,
@@ -41,7 +35,6 @@ class ReservationController extends Controller
             ], 404);
         }
 
-        // Check if user already has a reservation for this box
         $userHasReservation = Reservation::where('box_id', $box->id)
             ->where('user_id', Auth::id())
             ->where('status', 'reserved')
@@ -54,12 +47,10 @@ class ReservationController extends Controller
             ], 400);
         }
 
-        // Count current active reservations for this box
         $activeReservationsCount = Reservation::where('box_id', $box->id)
             ->where('status', 'reserved')
             ->count();
 
-        // Check if there are still boxes available to reserve
         if ($activeReservationsCount >= $box->quantity_available) {
             return response()->json([
                 'success' => false,
@@ -67,12 +58,10 @@ class ReservationController extends Controller
             ], 400);
         }
 
-        // Create the reservation within a transaction
         DB::transaction(function () use ($box) {
             $box->quantity_available = $box->quantity_available - 1;
             $box->save();
 
-            // 2. Create the reservation
             Reservation::create([
                 'user_id' => Auth::id(),
                 'box_id' => $box->id,
@@ -86,12 +75,7 @@ class ReservationController extends Controller
         ], 201);
     }
 
-    /**
-     * Get current user's reservations
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
+
     public function getUserReservations(Request $request)
     {
         $reservations = Reservation::where('user_id', Auth::id())
@@ -105,14 +89,8 @@ class ReservationController extends Controller
         ]);
     }
 
-    /**
-     * Update reservation status
-     *
-     * @param Request $request
-     * @param int $id
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function updateStatus(Request $request, $id)
+
+    public function updateReservationStatus(Request $request, $id)
     {
         $validator = Validator::make($request->all(), [
             'status' => 'required|in:picked_up,canceled',
@@ -135,7 +113,6 @@ class ReservationController extends Controller
             ], 404);
         }
 
-        // Check if user owns this reservation or is a business owner of the box
         $isOwner = $reservation->user_id === Auth::id();
         $isBusinessOwner = $reservation->box->business->user_id === Auth::id();
 
@@ -146,7 +123,6 @@ class ReservationController extends Controller
             ], 403);
         }
 
-        // Only allow updating if status is currently 'reserved'
         if ($reservation->status !== 'reserved') {
             return response()->json([
                 'success' => false,
@@ -154,7 +130,6 @@ class ReservationController extends Controller
             ], 400);
         }
 
-        // If canceling the reservation, increment the box quantity
         if ($request->status === 'canceled') {
             $box = $reservation->box;
             $box->increment('quantity_available');
@@ -170,15 +145,9 @@ class ReservationController extends Controller
         ]);
     }
 
-    /**
-     * Get all reservations for boxes of a business
-     *
-     * @param Request $request
-     * @return \Illuminate\Http\JsonResponse
-     */
+
     public function getBusinessReservations(Request $request)
     {
-        // Get boxes for the user's business
         $business = Auth::user()->business;
 
         if (!$business) {
@@ -212,7 +181,6 @@ class ReservationController extends Controller
     {
         $box = Box::find($box_id);
 
-        // Check if box exists
         if (!$box) {
             return response()->json([
                 'success' => false,
@@ -220,7 +188,6 @@ class ReservationController extends Controller
             ], 404);
         }
 
-        // Check if user already has a reservation for this box
         $userHasReservation = Reservation::where('box_id', $box->id)
             ->where('user_id', Auth::id())
             ->where('status', 'reserved')
@@ -243,7 +210,6 @@ class ReservationController extends Controller
             ], 404);
         }
 
-        // Check if user owns this reservation or is a business owner of the box
         $isOwner = $reservation->user_id === Auth::id();
         $isBusinessOwner = $reservation->box->business->user_id === Auth::id();
 

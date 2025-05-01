@@ -1,0 +1,96 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Models\Box;
+use App\Models\Reservation;
+use Carbon\Carbon;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+
+class CheckExpiredReservations extends Command
+{
+    protected $signature = 'reservations:check-expired';
+    protected $description = 'Cancel expired reservations and restore box quantities';
+
+    public function handle(): int
+    {
+        $this->info('Checking for expired reservations...');
+        $count = 0;
+        
+        try {
+            // Get all active reservations - use chunk for better memory handling with large datasets
+            Reservation::where('status', 'reserved')
+                ->with('box') // Eager load box relationship to prevent N+1 query issue
+                ->chunk(100, function ($reservations) use (&$count) {
+                    foreach ($reservations as $reservation) {
+                        if ($this->shouldCancelReservation($reservation)) {
+                            $this->cancelReservation($reservation);
+                            $count++;
+                        }
+                    }
+                });
+            
+            $this->info("Canceled $count expired reservations");
+            return Command::SUCCESS;
+        } catch (\Exception $e) {
+            Log::error('Error in CheckExpiredReservations: ' . $e->getMessage());
+            $this->error('An error occurred: ' . $e->getMessage());
+            return Command::FAILURE;
+        }
+    }
+    
+    /**
+     * Determine if a reservation should be canceled due to expiration
+     */
+    private function shouldCancelReservation(Reservation $reservation): bool
+    {
+        $box = $reservation->box;
+        
+        // Skip if box doesn't exist or has no pickup time
+        if (!$box || !$box->pickup_time) {
+            return false;
+        }
+        
+        try {
+            // Parse the pickup time (format: "18:00-20:00")
+            [$startTime, $endTime] = explode('-', $box->pickup_time);
+            
+            // Check if reservation was made yesterday or earlier
+            $reservationDate = Carbon::parse($reservation->created_at)->format('Y-m-d');
+            $today = now()->format('Y-m-d');
+            
+            // If reservation was made today and end time hasn't passed, don't cancel
+            if ($reservationDate === $today) {
+                $endTimeToday = Carbon::parse("$today $endTime:00");
+                if (now()->lt($endTimeToday)) {
+                    return false;
+                }
+            }
+            
+            // We should cancel if we've reached this point
+            return true;
+        } catch (\Exception $e) {
+            Log::warning("Error processing reservation #{$reservation->id}: " . $e->getMessage());
+            return false; // Don't cancel if there was an error processing
+        }
+    }
+    
+    /**
+     * Cancel a reservation and restore box quantity
+     */
+    private function cancelReservation(Reservation $reservation): void
+    {
+        DB::transaction(function () use ($reservation) {
+            // Increment the box quantity
+            $box = $reservation->box;
+            $box->increment('quantity_available');
+            
+            // Mark reservation as canceled
+            $reservation->update(['status' => 'canceled']);
+            
+            // You might want to notify the user here in a production app
+        });
+    }
+}
