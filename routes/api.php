@@ -10,6 +10,9 @@ use App\Http\Controllers\BusinessController;
 use App\Http\Controllers\StatisticsController;
 use App\Http\Controllers\ReservationController;
 
+// Move this line BEFORE your other box routes to prevent conflicts
+Route::get('/search-boxes', [BoxController::class, 'searchBoxes'])->middleware('auth:api');
+
 Route::post('/register', [AuthController::class, 'register']);
 Route::post("/login", [AuthController::class, 'login']);
 Route::post("/logout", [AuthController::class, 'logout']);
@@ -51,7 +54,7 @@ Route::put('/reports/{id}', [ReportController::class, 'updateReportStatus'])->mi
 
 
 
-Route::middleware('auth:api')->group(function () { 
+Route::middleware('auth:api')->group(function () {
     Route::post('/makeReservation', [ReservationController::class, 'makeReservation']);
 
     Route::get('/reservations/user', [ReservationController::class, 'getUserReservations']);
@@ -84,6 +87,9 @@ Route::get('/business/statistics', [BusinessController::class, 'getBusinessStati
 
 Route::middleware('auth:api')->group(function () {
     Route::delete('/boxes/business/{id}', [BoxController::class, 'deleteBoxFromBusiness']);
-    Route::put('/boxes/business/{id}', [BoxController::class, 'editBox']);
+    Route::post('/boxes/business/{id}', [BoxController::class, 'editBox'])->middleware("business");
     Route::patch('/boxes/business/{id}/status', [BoxController::class, 'changeBoxStatus']);
+
+    Route::get('/boxes/search-query', [BoxController::class, 'searchBoxes']);
+    
 });

@@ -59,12 +59,24 @@ class AuthController extends Controller
             'email' => 'required|email',
             'password' => 'required|string',
         ]);
+
         $credentials = $request->only('email', 'password');
 
         if (!$token = Auth::attempt($credentials)) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
+
         $user = Auth::user();
+
+        // if ($user->status !== 'active') {
+        //     Auth::logout();
+
+        //     return response()->json([
+        //         'status' => 'error',
+        //         'message' => 'Your account is currently inactive. Please wait for administrator approval.'
+        //     ], 403);
+        // }
+
         return response()->json([
             "status" => "success",
             "message" => "User logged in successfully",
@@ -75,7 +87,6 @@ class AuthController extends Controller
             ]
         ]);
     }
-
 
     public function logout()
     {

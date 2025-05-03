@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 use App\Models\Box;
 use App\Models\Business;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Validator;
 class BoxController extends Controller
 {
 
-    
+
 
 
     public function storeBox(Request $request)
@@ -138,7 +139,7 @@ class BoxController extends Controller
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
-    
+
 
         $box = Box::findOrFail($id);
         $bussiness_owner = Business::with('user')->where('id', $box->business_id)->first();
@@ -189,7 +190,7 @@ class BoxController extends Controller
     {
         $latitude = Auth::user()->latitude;
         $longitude = Auth::user()->longitude;
-        $radius = Auth::user()->zone * 1000; 
+        $radius = Auth::user()->zone * 1000;
 
         $boxes = Box::with('business')->get();
 
@@ -198,7 +199,7 @@ class BoxController extends Controller
         foreach ($boxes as $box) {
             $address = $box->business->business_address;
 
-      
+
             $geoResponse = Http::get('https://api.opencagedata.com/geocode/v1/json', [
                 'q' => $address,
                 'key' => '16a6b2414b4f4109bd6e21c5591ecdc4',
@@ -259,7 +260,7 @@ class BoxController extends Controller
 
     public function getAllBoxes(Request $request)
     {
-        
+
         if (!Auth::user()->role === 'Admin') {
             return response()->json([
                 'success' => false,
@@ -321,25 +322,25 @@ class BoxController extends Controller
     public function getBusinessBoxes(Request $request)
     {
         $business = Auth::user()->business;
-        
+
         if (!$business) {
             return response()->json([
                 'success' => false,
                 'message' => 'No business associated with this account'
             ], 404);
         }
-        
+
         $boxes = Box::where('business_id', $business->id)
             ->orderBy('created_at', 'desc')
             ->paginate($request->per_page ?? 15);
-        
+
         return response()->json([
             'success' => true,
             'data' => $boxes
         ]);
     }
 
- 
+
     public function deleteBoxFromBusiness($id)
     {
         $box = Box::find($id);
@@ -352,7 +353,7 @@ class BoxController extends Controller
         }
 
         $business = Auth::user()->business;
-        
+
         if (!$business || $business->id !== $box->business_id) {
             return response()->json([
                 'success' => false,
@@ -376,6 +377,19 @@ class BoxController extends Controller
 
     public function editBox(Request $request, $id)
     {
+
+        Log::info('Image upload debug', [
+            'has_file' => $request->hasFile('image'),
+            'file_keys' => array_keys($request->allFiles()),
+            'file_errors' => $request->hasFile('image') ? $request->file('image')->getError() : 'No file'
+        ]);
+
+        Log::info('Request received to edit box', [
+            'id' => $id,
+            'data' => $request->all(),
+            'headers' => $request->header()
+        ]);
+
         $validator = Validator::make($request->all(), [
             'title' => 'required|string|max:255',
             'description' => 'required|string',
@@ -406,7 +420,7 @@ class BoxController extends Controller
 
 
         $business = Auth::user()->business;
-        
+
         if (!$business || $business->id !== $box->business_id) {
             return response()->json([
                 'success' => false,
@@ -440,6 +454,4 @@ class BoxController extends Controller
             'data' => $box
         ]);
     }
-
-    
 }
